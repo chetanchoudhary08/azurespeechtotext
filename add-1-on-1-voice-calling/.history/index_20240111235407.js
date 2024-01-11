@@ -120,9 +120,8 @@ function startCallStreamTranscription(call) {
         if(args.added.length > 0){        
         console.log(args.added[0]);
    let callStream = args.added[0]; // Assuming there is only one stream
-   let abc = await callStream.getMediaStream();
-   console.log(abc);
-   audioConfig = sdk.AudioConfig.fromStreamInput(abc);
+   console.log(callStream.getMediaStream());
+   audioConfig = sdk.AudioConfig.fromStreamInput(callStream.getMediaStream());
 
    speechConfig = sdk.SpeechConfig.fromSubscription(
      "077629f65bc04d028d6224de660db13b",

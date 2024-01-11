@@ -1,7 +1,6 @@
 import { CallClient } from "@azure/communication-calling";
-import { Call } from "@azure/communication-calling";
-
 import { AzureCommunicationTokenCredential } from '@azure/communication-common';
+import { user } from "firebase-functions/v1/auth";
 
 let call;
 let incomingCall;
@@ -25,8 +24,8 @@ let speechRecognizer;
 
 submitToken.addEventListener("click", async () => {
   const callClient = new CallClient();
-
-  const userTokenCredential = userToken.value;
+  // const userTokenCredential = userToken.value;
+  userTokenCredential ="eyJhbGciOiJSUzI1NiIsImtpZCI6IjVFODQ4MjE0Qzc3MDczQUU1QzJCREU1Q0NENTQ0ODlEREYyQzRDODQiLCJ4NXQiOiJYb1NDRk1kd2M2NWNLOTVjelZSSW5kOHNUSVEiLCJ0eXAiOiJKV1QifQ.eyJza3lwZWlkIjoiYWNzOjVmZTFmNjc4LWJjNjMtNGZhMS05ODdhLWJmMTI0MGUxNzg3ZV8wMDAwMDAxZC05Nzg4LWZkMDMtZjQwZi0zNDNhMGQwMDY0OTYiLCJzY3AiOjE3OTIsImNzaSI6IjE3MDQ5NjE5ODgiLCJleHAiOjE3MDUwNDgzODgsInJnbiI6ImFtZXIiLCJhY3NTY29wZSI6ImNoYXQsdm9pcCIsInJlc291cmNlSWQiOiI1ZmUxZjY3OC1iYzYzLTRmYTEtOTg3YS1iZjEyNDBlMTc4N2UiLCJyZXNvdXJjZUxvY2F0aW9uIjoidW5pdGVkc3RhdGVzIiwiaWF0IjoxNzA0OTYxOTg4fQ.UxUeN38p2T5jpF11Z_OdsCTQ0mNxV-4kKA2LT9QI-p0FzyfzldLkDJYwMgITv8_AwnVM__4gYmEV2JWCUlL7uNYbc0Mi2hAk-svLjueMXr7-XnFZkkdUfH5vy_qYsFVXFBuaQ6oAibX5MvGOMebKN1mu8-hcCKRQcYRZ_Xsemx1Sl6APQR-GBQs_BjRQBXU579tG0cgjjX6Igm2ZKH1Bq_EVl9P9K4IldtNDobl-PmtTfh3na6L9DOTqRv-4Zj6v2eKcb8EpDASIcRxVjWjtymq3BcBC2WsF312AxpuNBhPhfjdTpPjlREalBP-G-_Y4BUnnG0F1FrEG8HrONCgv6g";
     try {
       tokenCredential = new AzureCommunicationTokenCredential(userTokenCredential);
       callAgent = await callClient.createCallAgent(tokenCredential);
@@ -44,28 +43,6 @@ submitToken.addEventListener("click", async () => {
           console.error(error);
         }
       });
-
-      callAgent.on("callsUpdated", async (args) => {
-              try {
-                incomingCall = args.getAdded;
-                acceptCallButton.disabled = false;
-                callButton.disabled = true;
-              } catch (error) {
-                console.error(error);
-              }
-            });
-
-
-      callAgent.on("connectionStateChanged", async (args) => {
-                 try {
-                   console.log(args);
-                 } catch (error) {
-                   console.error(error);
-                 }
-               });
-
-
-
     } catch(error) {
       window.alert("Please submit a valid token!");
     }
@@ -79,7 +56,7 @@ callButton.addEventListener("click", () => {
   hangUpButton.disabled = false;
   callButton.disabled = true;
   // Start listening to the call stream for real-time transcription
-  startCallStreamTranscription(callAgent.calls);
+  startCallStreamTranscription(call);
 });
 
 hangUpButton.addEventListener("click", () => {
@@ -106,82 +83,55 @@ acceptCallButton.onclick = async () => {
 }
 
 function startCallStreamTranscription(call) {
-  //console.log(call);
+   if(call.streams && call.streams.length > 0) {
+    let callStream = call.streams[0]; // Assuming there is only one stream
+    audioConfig = sdk.AudioConfig.fromStreamInput(callStream);
 
-  //execute the below after 3 seconds delay
-  setTimeout(() => {
-    //console.log(call);
-      let cr ;
-     cr = call[0];
-     //console.log(cr);
-     cr.on("remoteAudioStreamsUpdated", async (args) => {
-       try {
-         
-        if(args.added.length > 0){        
-        console.log(args.added[0]);
-   let callStream = args.added[0]; // Assuming there is only one stream
-   let abc = await callStream.getMediaStream();
-   console.log(abc);
-   audioConfig = sdk.AudioConfig.fromStreamInput(abc);
+    speechConfig = sdk.SpeechConfig.fromSubscription(
+      "077629f65bc04d028d6224de660db13b",
+      "eastus"
+    );
 
-   speechConfig = sdk.SpeechConfig.fromSubscription(
-     "077629f65bc04d028d6224de660db13b",
-     "eastus"
-   );
+    speechRecognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
+    speechRecognizer.startContinuousRecognitionAsync();
 
-   speechRecognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
-   speechRecognizer.startContinuousRecognitionAsync();
+    speechRecognizer.recognizing = (s, e) => {
+      console.log(`RECOGNIZING: Text=${e.result.text}`);
+    };
 
-   speechRecognizer.recognizing = (s, e) => {
-     console.log(`RECOGNIZING: Text=${e.result.text}`);
-   };
+    speechRecognizer.recognized = (s, e) => {
+      if (e.result.reason == sdk.ResultReason.RecognizedSpeech) {
+        console.log(`RECOGNIZED: Text=${e.result.text}`);
+      } else if (e.result.reason == sdk.ResultReason.NoMatch) {
+        console.log("NOMATCH: Speech could not be recognized.");
+      }
+    };
 
-   speechRecognizer.recognized = (s, e) => {
-     if (e.result.reason == sdk.ResultReason.RecognizedSpeech) {
-       console.log(`RECOGNIZED: Text=${e.result.text}`);
-     } else if (e.result.reason == sdk.ResultReason.NoMatch) {
-       console.log("NOMATCH: Speech could not be recognized.");
-     }
-   };
+    speechRecognizer.canceled = (s, e) => {
+      console.log(`CANCELED: Reason=${e.reason}`);
 
-   speechRecognizer.canceled = (s, e) => {
-     console.log(`CANCELED: Reason=${e.reason}`);
+      if (e.reason == sdk.CancellationReason.Error) {
+        console.log(`"CANCELED: ErrorCode=${e.errorCode}`);
+        console.log(`"CANCELED: ErrorDetails=${e.errorDetails}`);
+        console.log(
+          "CANCELED: Did you set the speech resource key and region values?"
+        );
+      }
 
-     if (e.reason == sdk.CancellationReason.Error) {
-       console.log(`"CANCELED: ErrorCode=${e.errorCode}`);
-       console.log(`"CANCELED: ErrorDetails=${e.errorDetails}`);
-       console.log(
-         "CANCELED: Did you set the speech resource key and region values?"
-       );
-     }
+      speechRecognizer.stopContinuousRecognitionAsync();
+    };
 
-     speechRecognizer.stopContinuousRecognitionAsync();
-   };
+    speechRecognizer.sessionStopped = (s, e) => {
+      console.log("\n    Session stopped event.");
+      speechRecognizer.stopContinuousRecognitionAsync();
+    };
 
-   speechRecognizer.sessionStopped = (s, e) => {
-     console.log("\n    Session stopped event.");
-     speechRecognizer.stopContinuousRecognitionAsync();
-   };
+    } else{
+    console.error("No call stream found.");
 
-        }
+    }
 
-
-
-
-
-       } catch (error) {
-         console.error(error);
-       }
-     });
-  }, 1000);
-
-
-     
-
-  // call.on("remoteAudioStreamsUpdated", CollectionUpdatedEvent<RemoteAudioStream>);
   
- 
-
   // Pass the call stream to your transcription service for real-time transcription
   // Your code to handle the call stream and send it to the transcription service goes here
 }
